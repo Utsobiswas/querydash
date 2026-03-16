@@ -120,15 +120,7 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange, prefillQuestion
       if (data.success) {
         setUploadedFile(file.name);
         setUseUploaded(true);
-
-        // Fetch stats for uploaded CSV
-        try {
-          const statsResponse = await fetch(`${BACKEND_URL}/api/stats?use_uploaded=true&session_id=default`);
-          const statsData = await statsResponse.json();
-          onCSVChange?.(true, statsData.success ? statsData : null);
-        } catch {
-          onCSVChange?.(true, null);
-        }
+        onCSVChange?.(true, data.stats || null);
       }
     } catch (err) {
       console.error('Upload failed:', err);

@@ -165,18 +165,32 @@ def execute_chart_query(chart_config: dict, df: pd.DataFrame) -> list:
         print(f"Error executing chart query: {e}")
         return chart_config.get("data", [])
 
-@app.get("/api/stats")
-async def get_stats():
+def calculate_stats(df: pd.DataFrame) -> dict:
     try:
-        df = default_df
-        total_revenue = int(df['revenue'].sum())
-        total_orders = len(df)
-        avg_order_value = int(df['revenue'].mean())
-        top_region = df.groupby('region')['revenue'].sum().idxmax()
+        # Find numeric revenue-like column
+        revenue_col = None
+        for col in ['revenue', 'Revenue', 'sales', 'Sales', 'amount', 'Amount', 'total', 'Total']:
+            if col in df.columns:
+                revenue_col = col
+                break
+        if not revenue_col:
+            numeric_cols = df.select_dtypes(include='number').columns
+            if len(numeric_cols) > 0:
+                revenue_col = numeric_cols[0]
 
-        q1_revenue = int(df[df['quarter'] == 'Q1']['revenue'].sum())
-        q4_revenue = int(df[df['quarter'] == 'Q4']['revenue'].sum())
-        growth = round(((q4_revenue - q1_revenue) / q1_revenue) * 100, 1)
+        # Find region-like column
+        region_col = None
+        for col in ['region', 'Region', 'country', 'Country', 'city', 'City', 'location', 'Location']:
+            if col in df.columns:
+                region_col = col
+                break
+
+        # Find quarter column
+        quarter_col = None
+        for col in ['quarter', 'Quarter', 'q', 'Q']:
+            if col in df.columns:
+                quarter_col = col
+                break
 
         def format_number(n):
             if n >= 1_000_000_000:
@@ -187,14 +201,47 @@ async def get_stats():
                 return f"${n/1_000:.0f}K"
             return f"${n}"
 
+        total_revenue = int(df[revenue_col].sum()) if revenue_col else 0
+        total_orders = len(df)
+        avg_order_value = int(df[revenue_col].mean()) if revenue_col else 0
+
+        top_region = "N/A"
+        if region_col and revenue_col:
+            top_region = df.groupby(region_col)[revenue_col].sum().idxmax()
+
+        ytd_growth = "+0%"
+        if quarter_col and revenue_col:
+            try:
+                q1 = int(df[df[quarter_col] == 'Q1'][revenue_col].sum())
+                q4 = int(df[df[quarter_col] == 'Q4'][revenue_col].sum())
+                if q1 > 0:
+                    growth = round(((q4 - q1) / q1) * 100, 1)
+                    ytd_growth = f"+{growth}%" if growth > 0 else f"{growth}%"
+            except:
+                pass
+
         return {
             "success": True,
             "total_revenue": format_number(total_revenue),
             "total_orders": total_orders,
             "avg_order_value": format_number(avg_order_value),
             "top_region": top_region,
-            "ytd_growth": f"+{growth}%" if growth > 0 else f"{growth}%"
+            "ytd_growth": ytd_growth
         }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.get("/api/stats")
+async def get_stats(use_uploaded: bool = False, session_id: str = "default"):
+    try:
+        if use_uploaded and session_id in uploaded_dataframes:
+            df = uploaded_dataframes[session_id]
+        else:
+            df = default_df
+        return calculate_stats(df)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -281,12 +328,16 @@ async def upload_csv(file: UploadFile = File(...), session_id: str = "default"):
         uploaded_dataframes[session_id] = df
         conversation_history[session_id] = []
 
+        # Return stats of uploaded CSV immediately
+        stats = calculate_stats(df)
+
         return {
             "success": True,
             "message": "CSV uploaded successfully!",
             "rows": len(df),
             "columns": df.columns.tolist(),
-            "preview": df.head(3).to_dict(orient="records")
+            "preview": df.head(3).to_dict(orient="records"),
+            "stats": stats
         }
 
     except Exception as e:
