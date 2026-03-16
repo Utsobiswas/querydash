@@ -12,6 +12,8 @@ import {
   Legend, ResponsiveContainer
 } from 'recharts';
 
+const BACKEND_URL = 'https://querydash-production.up.railway.app';
+
 interface ChartData {
   id: string;
   title: string;
@@ -26,6 +28,11 @@ interface DashboardData {
   question_understood: string;
   charts: ChartData[];
   insight: string;
+}
+
+interface QuestionHistory {
+  query: string;
+  timestamp: string;
 }
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b'];
@@ -60,34 +67,31 @@ function DynamicChart({ chart }: { chart: ChartData }) {
         </ResponsiveContainer>
       );
     }
-  if (chart_type === 'pie') {
-  return (
-    <ResponsiveContainer width="100%" height={220}>
-      <PieChart>
-        <Pie
-          data={data}
-          cx="50%"
-          cy="45%"
-          outerRadius={75}
-          dataKey="value"
-          nameKey="name"
-          label={({ name, percent }) =>
-            percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''
-          }
-        >
-          {data.map((_, index) => (
-            <Cell key={index} fill={COLORS[index % COLORS.length]} />
-          ))}
-        </Pie>
-        <Tooltip
-          contentStyle={{ backgroundColor: '#1e1e2e', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff' }}
-          itemStyle={{ color: '#fff' }}
-        />
-        <Legend wrapperStyle={{ color: '#ffffff', fontSize: '11px', paddingTop: '8px' }} />
-      </PieChart>
-    </ResponsiveContainer>
-  );
-}
+    if (chart_type === 'pie') {
+      return (
+        <ResponsiveContainer width="100%" height={220}>
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="45%"
+              outerRadius={75}
+              dataKey="value"
+              nameKey="name"
+              label={({ name, percent }) =>
+                percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''
+              }
+            >
+              {data.map((_, index) => (
+                <Cell key={index} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={{ backgroundColor: '#1e1e2e', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff' }} itemStyle={{ color: '#fff' }} />
+            <Legend wrapperStyle={{ color: '#ffffff', fontSize: '11px', paddingTop: '8px' }} />
+          </PieChart>
+        </ResponsiveContainer>
+      );
+    }
     if (chart_type === 'area') {
       return (
         <ResponsiveContainer width="100%" height={220}>
@@ -123,6 +127,7 @@ export default function Home() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [chatHistory, setChatHistory] = useState<string[]>([]);
+  const [questionHistory, setQuestionHistory] = useState<QuestionHistory[]>([]);
 
   const handleQuerySubmit = (question: string, data: DashboardData) => {
     setLastQuestion(question);
@@ -130,13 +135,17 @@ export default function Home() {
     setDashboardData(data);
     setIsSidebarOpen(false);
     setChatHistory([]);
+    setQuestionHistory(prev => [...prev, {
+      query: question,
+      timestamp: new Date().toISOString()
+    }]);
   };
 
   const handleFollowUp = async () => {
     if (!followUpQuestion.trim()) return;
     setIsLoadingCharts(true);
     try {
-      const response = await fetch('https://querydash-production.up.railway.app/api/query', {
+      const response = await fetch(`${BACKEND_URL}/api/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -150,6 +159,10 @@ export default function Home() {
         setDashboardData(data);
         setChatHistory(prev => [...prev, followUpQuestion]);
         setLastQuestion(followUpQuestion);
+        setQuestionHistory(prev => [...prev, {
+          query: followUpQuestion,
+          timestamp: new Date().toISOString()
+        }]);
       }
     } catch (err) {
       console.error(err);
@@ -163,7 +176,11 @@ export default function Home() {
     <div className="flex flex-col min-h-screen bg-background">
       <Navbar onMenuToggle={setIsSidebarOpen} />
       <div className="flex flex-1">
-        <Sidebar isOpen={isSidebarOpen} />
+        <Sidebar
+          isOpen={isSidebarOpen}
+          questionHistory={questionHistory}
+          onClearHistory={() => setQuestionHistory([])}
+        />
         <main className="flex-1">
           <div className="p-6 md:p-8 space-y-8 max-w-7xl mx-auto w-full">
 
