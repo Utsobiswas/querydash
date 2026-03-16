@@ -63,17 +63,32 @@ Given a natural language business question, you must return a JSON response with
 
 RULES:
 1. ALWAYS return valid JSON only. No extra text, no markdown, no explanation outside JSON.
-2. Choose the BEST chart type:
-   - Use "line" for trends over time (monthly, quarterly, yearly)
-   - Use "bar" for comparisons between categories (regions, products, segments)
-   - Use "pie" for parts of a whole (market share, category distribution)
-   - Use "area" for cumulative trends
-3. ALWAYS return minimum 2 charts, maximum 4 charts. Even for simple questions, show the data in 2 different ways.
+
+2. CHART SELECTION RULES (strictly follow these data visualization best practices):
+   - Use "line" ONLY for: trends over time, monthly data, yearly data, quarterly trends, time series analysis
+   - Use "bar" ONLY for: comparing categories, ranking items, regional comparisons, product comparisons, segment analysis
+   - Use "pie" ONLY for: percentage breakdowns, market share, parts of a whole (ONLY when 6 or fewer categories)
+   - Use "area" ONLY for: cumulative trends, growth over time, stacked comparisons
+   - NEVER use pie chart if there are more than 6 categories
+   - NEVER use line chart if data is not time-based
+   - NEVER use pie chart for simple comparisons between unrelated categories
+   - When question mentions "trend", "over time", "monthly", "quarterly", "yearly" → ALWAYS use line or area
+   - When question mentions "compare", "breakdown", "by region", "by product" → ALWAYS use bar
+   - When question mentions "percentage", "share", "proportion", "distribution" → ALWAYS use pie
+
+3. ALWAYS return minimum 2 charts, maximum 4 charts. Even for simple questions, show the data in 2 different ways. For example if asked about revenue by region, show a bar chart AND a pie chart of the same data.
+
 4. Use ONLY columns that exist in the dataset schema above.
+
 5. If a question cannot be answered with available data, return an error JSON.
-6. For follow-up questions, use the conversation history to understand context.
+
+6. For follow-up questions, use the conversation history to understand context and apply filters accordingly.
+
 7. Always aggregate data properly (sum revenue, count orders, average price etc.)
-8. Never make up data or hallucinate numbers.
+
+8. Never make up data or hallucinate numbers. Only use values that exist in the dataset.
+
+9. For filters, use exact values that exist in the dataset columns listed above.
 
 RESPONSE FORMAT (return exactly this JSON structure):
 {{
@@ -103,7 +118,7 @@ IF QUESTION CANNOT BE ANSWERED:
 {{
   "success": false,
   "error": "Explanation of why this cannot be answered with available data",
-  "suggestion": "What kind of question can be answered"
+  "suggestion": "What kind of question CAN be answered with this dataset"
 }}
 
 CHART COLOR GUIDE (use these colors):
@@ -167,7 +182,6 @@ def execute_chart_query(chart_config: dict, df: pd.DataFrame) -> list:
 
 def calculate_stats(df: pd.DataFrame) -> dict:
     try:
-        # Find numeric revenue-like column
         revenue_col = None
         for col in ['revenue', 'Revenue', 'sales', 'Sales', 'amount', 'Amount', 'total', 'Total']:
             if col in df.columns:
@@ -178,14 +192,12 @@ def calculate_stats(df: pd.DataFrame) -> dict:
             if len(numeric_cols) > 0:
                 revenue_col = numeric_cols[0]
 
-        # Find region-like column
         region_col = None
         for col in ['region', 'Region', 'country', 'Country', 'city', 'City', 'location', 'Location']:
             if col in df.columns:
                 region_col = col
                 break
 
-        # Find quarter column
         quarter_col = None
         for col in ['quarter', 'Quarter', 'q', 'Q']:
             if col in df.columns:
@@ -269,7 +281,7 @@ async def query_dashboard(request: QueryRequest):
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a Business Intelligence AI. Always respond with valid JSON only. No extra text."
+                    "content": "You are a Business Intelligence AI. Always respond with valid JSON only. No extra text. Follow chart selection rules strictly."
                 },
                 {
                     "role": "user",
@@ -328,7 +340,6 @@ async def upload_csv(file: UploadFile = File(...), session_id: str = "default"):
         uploaded_dataframes[session_id] = df
         conversation_history[session_id] = []
 
-        # Return stats of uploaded CSV immediately
         stats = calculate_stats(df)
 
         return {
