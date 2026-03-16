@@ -20,6 +20,14 @@ export function Stats({ isUploaded = false, uploadedCSVData = null }: StatsProps
   });
   const [loading, setLoading] = useState(true);
 
+  // Keep Railway backend alive
+  useEffect(() => {
+    const keepAlive = setInterval(() => {
+      fetch(`${BACKEND_URL}/health`).catch(() => {});
+    }, 25 * 60 * 1000);
+    return () => clearInterval(keepAlive);
+  }, []);
+
   // Fetch default stats on mount
   useEffect(() => {
     const fetchStats = async () => {
@@ -74,7 +82,7 @@ export function Stats({ isUploaded = false, uploadedCSVData = null }: StatsProps
       {isUploaded && (
         <div className="col-span-full mb-1">
           <p className="text-xs text-green-400 flex items-center gap-1">
-            📁 Showing stats from your uploaded CSV — 
+            📁 Showing stats from your uploaded CSV —
             <span className="text-white/40">remove file to see default data</span>
           </p>
         </div>
@@ -100,4 +108,4 @@ export function Stats({ isUploaded = false, uploadedCSVData = null }: StatsProps
       ))}
     </div>
   );
-} 
+}
