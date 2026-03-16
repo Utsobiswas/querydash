@@ -165,6 +165,39 @@ def execute_chart_query(chart_config: dict, df: pd.DataFrame) -> list:
         print(f"Error executing chart query: {e}")
         return chart_config.get("data", [])
 
+@app.get("/api/stats")
+async def get_stats():
+    try:
+        df = default_df
+        total_revenue = int(df['revenue'].sum())
+        total_orders = len(df)
+        avg_order_value = int(df['revenue'].mean())
+        top_region = df.groupby('region')['revenue'].sum().idxmax()
+
+        q1_revenue = int(df[df['quarter'] == 'Q1']['revenue'].sum())
+        q4_revenue = int(df[df['quarter'] == 'Q4']['revenue'].sum())
+        growth = round(((q4_revenue - q1_revenue) / q1_revenue) * 100, 1)
+
+        def format_number(n):
+            if n >= 1_000_000_000:
+                return f"${n/1_000_000_000:.1f}B"
+            elif n >= 1_000_000:
+                return f"${n/1_000_000:.1f}M"
+            elif n >= 1_000:
+                return f"${n/1_000:.0f}K"
+            return f"${n}"
+
+        return {
+            "success": True,
+            "total_revenue": format_number(total_revenue),
+            "total_orders": total_orders,
+            "avg_order_value": format_number(avg_order_value),
+            "top_region": top_region,
+            "ytd_growth": f"+{growth}%" if growth > 0 else f"{growth}%"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/query")
 async def query_dashboard(request: QueryRequest):
     try:

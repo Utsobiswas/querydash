@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Sparkles, Upload, FileText, X } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Sparkles, Upload, FileText, X, Loader2 } from 'lucide-react';
 import { exampleQuestions } from '@/lib/mock-data';
+
+const BACKEND_URL = 'https://querydash-production.up.railway.app';
 
 interface QueryInterfaceProps {
   onQuerySubmit: (query: string, data: any) => void;
@@ -12,40 +14,76 @@ interface QueryInterfaceProps {
 export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfaceProps) {
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [useUploaded, setUseUploaded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadingMessages = [
+    'Connecting to AI engine...',
+    'Analyzing your question...',
+    'Querying the data...',
+    'Selecting best chart types...',
+    'Building your dashboard...',
+    'Almost ready...',
+  ];
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    let index = 0;
+    if (isLoading) {
+      setLoadingMessage(loadingMessages[0]);
+      interval = setInterval(() => {
+        index = (index + 1) % loadingMessages.length;
+        setLoadingMessage(loadingMessages[index]);
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  const fetchWithRetry = async (url: string, options: RequestInit, retries = 3): Promise<Response> => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url, options);
+        return response;
+      } catch (err) {
+        if (i === retries - 1) throw err;
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+    throw new Error('Failed after retries');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!question.trim()) return;
 
     setIsLoading(true);
-    setError('');
     onLoadingChange?.(true);
 
     try {
-      const response = await fetch('https://querydash-production.up.railway.app/api/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: question,
-          session_id: 'default',
-          use_uploaded: useUploaded,
-        }),
-      });
+      const response = await fetchWithRetry(
+        `${BACKEND_URL}/api/query`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: question,
+            session_id: 'default',
+            use_uploaded: useUploaded,
+          }),
+        },
+        3
+      );
 
       const data = await response.json();
 
       if (data.success) {
         onQuerySubmit(question, data);
-      } else {
-        setError(data.error || 'Could not answer this question.');
       }
     } catch (err) {
-      setError('Could not connect to backend. Make sure the Python server is running.');
+      console.error(err);
     } finally {
       setIsLoading(false);
       onLoadingChange?.(false);
@@ -57,14 +95,12 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfac
     if (!file) return;
 
     setIsUploading(true);
-    setError('');
 
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('session_id', 'default');
 
-      const response = await fetch('https://querydash-production.up.railway.app/api/upload-csv?session_id=default', {
+      const response = await fetch(`${BACKEND_URL}/api/upload-csv?session_id=default`, {
         method: 'POST',
         body: formData,
       });
@@ -74,11 +110,9 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfac
       if (data.success) {
         setUploadedFile(file.name);
         setUseUploaded(true);
-      } else {
-        setError('Failed to upload CSV file.');
       }
     } catch (err) {
-      setError('Upload failed. Make sure backend is running.');
+      console.error('Upload failed:', err);
     } finally {
       setIsUploading(false);
     }
@@ -105,19 +139,14 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfac
             <span className="text-sm text-green-400 flex-1">
               ✅ Using: <span className="font-semibold">{uploadedFile}</span>
             </span>
-            <button
-              onClick={handleRemoveFile}
-              className="text-white/40 hover:text-white transition-colors"
-            >
+            <button onClick={handleRemoveFile} className="text-white/40 hover:text-white transition-colors">
               <X size={16} />
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-3 w-full">
             <Upload size={18} className="text-white/50 shrink-0" />
-            <span className="text-sm text-white/50 flex-1">
-              Using default sales dataset
-            </span>
+            <span className="text-sm text-white/50 flex-1">Using default sales dataset</span>
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
@@ -127,13 +156,7 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfac
             </button>
           </div>
         )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
+        <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -149,9 +172,11 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfac
           />
         </div>
 
-        {error && (
-          <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
-            {error}
+        {/* Loading Status */}
+        {isLoading && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-accent/10 border border-accent/20 rounded-lg">
+            <Loader2 size={16} className="text-accent animate-spin shrink-0" />
+            <span className="text-sm text-accent">{loadingMessage}</span>
           </div>
         )}
 
@@ -163,8 +188,8 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfac
           >
             {isLoading ? (
               <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                AI is analyzing your query...
+                <Loader2 size={20} className="animate-spin" />
+                Processing...
               </>
             ) : (
               <>
@@ -193,4 +218,4 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfac
       </form>
     </div>
   );
-}
+} 
