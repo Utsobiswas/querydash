@@ -89,9 +89,9 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange, prefillQuestion
 
       const data = await response.json();
 
-      if (data.success) {
+      
         onQuerySubmit(question, data);
-      }
+      
     } catch (err) {
       console.error(err);
     } finally {
