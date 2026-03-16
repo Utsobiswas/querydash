@@ -131,8 +131,19 @@ export default function Home() {
   const [prefillQuestion, setPrefillQuestion] = useState('');
   const [isUsingUploadedCSV, setIsUsingUploadedCSV] = useState(false);
   const [uploadedCSVData, setUploadedCSVData] = useState<any>(null);
+  const [queryError, setQueryError] = useState<{error: string, suggestion: string} | null>(null);
 
-  const handleQuerySubmit = (question: string, data: DashboardData) => {
+  const handleQuerySubmit = (question: string, data: any) => {
+    if (!data.success) {
+      setQueryError({
+        error: data.error || 'Could not understand this question.',
+        suggestion: data.suggestion || 'Try asking about revenue, sales, regions or products.'
+      });
+      setDashboardData(null);
+      setIsQueryExecuted(false);
+      return;
+    }
+    setQueryError(null);
     setLastQuestion(question);
     setIsQueryExecuted(true);
     setDashboardData(data);
@@ -159,6 +170,7 @@ export default function Home() {
       });
       const data = await response.json();
       if (data.success) {
+        setQueryError(null);
         setDashboardData(data);
         setChatHistory(prev => [...prev, followUpQuestion]);
         setLastQuestion(followUpQuestion);
@@ -166,6 +178,11 @@ export default function Home() {
           query: followUpQuestion,
           timestamp: new Date().toISOString()
         }]);
+      } else {
+        setQueryError({
+          error: data.error || 'Could not understand this question.',
+          suggestion: data.suggestion || 'Try asking about revenue, sales, regions or products.'
+        });
       }
     } catch (err) {
       console.error(err);
@@ -177,6 +194,7 @@ export default function Home() {
 
   const handleSidebarQuestionClick = (query: string) => {
     setPrefillQuestion(query);
+    setQueryError(null);
     setIsSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -223,6 +241,47 @@ export default function Home() {
               />
             </div>
 
+            {/* Error Message */}
+            {queryError && (
+              <div className="glass p-5 border border-red-500/30 rounded-xl chart-animation bg-red-500/5">
+                <div className="flex items-start gap-3">
+                  <div className="text-red-400 text-xl mt-0.5">⚠️</div>
+                  <div className="flex-1">
+                    <p className="text-red-400 font-semibold text-sm mb-1">
+                      Could not generate dashboard
+                    </p>
+                    <p className="text-white/70 text-sm">
+                      {queryError.error}
+                    </p>
+                    {queryError.suggestion && (
+                      <p className="text-white/40 text-xs mt-2">
+                        💡 {queryError.suggestion}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <p className="text-white/40 text-xs mt-1">Try instead:</p>
+                      {[
+                        'Show me total revenue by region',
+                        'Show me monthly sales trend',
+                        'Compare revenue by product category'
+                      ].map((q, i) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            setPrefillQuestion(q);
+                            setQueryError(null);
+                          }}
+                          className="px-3 py-1 text-xs bg-white/5 border border-white/10 rounded-full hover:bg-white/10 hover:border-accent transition-colors text-white/60"
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {isQueryExecuted && lastQuestion && (
               <div className="glass p-4 border-l-2 border-accent chart-animation">
                 <p className="text-sm">
@@ -246,12 +305,12 @@ export default function Home() {
                 dashboardData.charts.map((chart) => (
                   <DynamicChart key={chart.id} chart={chart} />
                 ))
-              ) : (
+              ) : !queryError ? (
                 <div className="col-span-3 text-center py-16 text-muted-foreground">
                   <p className="text-lg">Ask a question above to generate your dashboard ✨</p>
                   <p className="text-sm mt-2">Try: "Show me monthly revenue for 2024"</p>
                 </div>
-              )}
+              ) : null}
             </div>
 
             {dashboardData && (
