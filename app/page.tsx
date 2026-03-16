@@ -129,6 +129,8 @@ export default function Home() {
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [questionHistory, setQuestionHistory] = useState<QuestionHistory[]>([]);
   const [prefillQuestion, setPrefillQuestion] = useState('');
+  const [isUsingUploadedCSV, setIsUsingUploadedCSV] = useState(false);
+  const [uploadedCSVData, setUploadedCSVData] = useState<any>(null);
 
   const handleQuerySubmit = (question: string, data: DashboardData) => {
     setLastQuestion(question);
@@ -152,7 +154,7 @@ export default function Home() {
         body: JSON.stringify({
           question: followUpQuestion,
           session_id: 'default',
-          use_uploaded: false,
+          use_uploaded: isUsingUploadedCSV,
         }),
       });
       const data = await response.json();
@@ -179,6 +181,15 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleCSVChange = (uploaded: boolean, csvStats?: any) => {
+    setIsUsingUploadedCSV(uploaded);
+    if (uploaded && csvStats) {
+      setUploadedCSVData(csvStats);
+    } else {
+      setUploadedCSVData(null);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Navbar onMenuToggle={setIsSidebarOpen} />
@@ -197,7 +208,10 @@ export default function Home() {
               <p className="text-muted-foreground text-lg">Ask questions about your business in plain English</p>
             </div>
 
-            <Stats />
+            <Stats
+              isUploaded={isUsingUploadedCSV}
+              uploadedCSVData={uploadedCSVData}
+            />
 
             <div className="fade-in">
               <QueryInterface
@@ -205,6 +219,7 @@ export default function Home() {
                 onLoadingChange={setIsLoadingCharts}
                 prefillQuestion={prefillQuestion}
                 onPrefillUsed={() => setPrefillQuestion('')}
+                onCSVChange={handleCSVChange}
               />
             </div>
 

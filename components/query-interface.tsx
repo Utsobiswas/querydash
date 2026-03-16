@@ -11,9 +11,10 @@ interface QueryInterfaceProps {
   onLoadingChange?: (isLoading: boolean) => void;
   prefillQuestion?: string;
   onPrefillUsed?: () => void;
+  onCSVChange?: (uploaded: boolean, csvStats?: any) => void;
 }
 
-export function QueryInterface({ onQuerySubmit, onLoadingChange, prefillQuestion, onPrefillUsed }: QueryInterfaceProps) {
+export function QueryInterface({ onQuerySubmit, onLoadingChange, prefillQuestion, onPrefillUsed, onCSVChange }: QueryInterfaceProps) {
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
@@ -119,6 +120,15 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange, prefillQuestion
       if (data.success) {
         setUploadedFile(file.name);
         setUseUploaded(true);
+
+        // Fetch stats for uploaded CSV
+        try {
+          const statsResponse = await fetch(`${BACKEND_URL}/api/stats?use_uploaded=true&session_id=default`);
+          const statsData = await statsResponse.json();
+          onCSVChange?.(true, statsData.success ? statsData : null);
+        } catch {
+          onCSVChange?.(true, null);
+        }
       }
     } catch (err) {
       console.error('Upload failed:', err);
@@ -131,6 +141,7 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange, prefillQuestion
     setUploadedFile(null);
     setUseUploaded(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    onCSVChange?.(false, null);
   };
 
   return (
