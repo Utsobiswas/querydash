@@ -6,14 +6,14 @@ interface SidebarProps {
   isOpen: boolean;
   questionHistory?: { query: string; timestamp: string }[];
   onClearHistory?: () => void;
+  onQuestionClick?: (query: string) => void;
 }
 
-export function Sidebar({ isOpen, questionHistory = [], onClearHistory }: SidebarProps) {
+export function Sidebar({ isOpen, questionHistory = [], onClearHistory, onQuestionClick }: SidebarProps) {
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
     const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-
     if (diff < 60) return 'Just now';
     if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
@@ -57,6 +57,7 @@ export function Sidebar({ isOpen, questionHistory = [], onClearHistory }: Sideba
               [...questionHistory].reverse().map((item, index) => (
                 <div
                   key={index}
+                  onClick={() => onQuestionClick?.(item.query)}
                   className="p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer group border border-white/5"
                 >
                   <p className="text-xs text-white/70 truncate group-hover:text-white transition-colors">

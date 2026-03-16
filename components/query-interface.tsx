@@ -9,9 +9,11 @@ const BACKEND_URL = 'https://querydash-production.up.railway.app';
 interface QueryInterfaceProps {
   onQuerySubmit: (query: string, data: any) => void;
   onLoadingChange?: (isLoading: boolean) => void;
+  prefillQuestion?: string;
+  onPrefillUsed?: () => void;
 }
 
-export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfaceProps) {
+export function QueryInterface({ onQuerySubmit, onLoadingChange, prefillQuestion, onPrefillUsed }: QueryInterfaceProps) {
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
@@ -41,6 +43,13 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfac
     }
     return () => clearInterval(interval);
   }, [isLoading]);
+
+  useEffect(() => {
+    if (prefillQuestion) {
+      setQuestion(prefillQuestion);
+      onPrefillUsed?.();
+    }
+  }, [prefillQuestion]);
 
   const fetchWithRetry = async (url: string, options: RequestInit, retries = 3): Promise<Response> => {
     for (let i = 0; i < retries; i++) {
@@ -124,10 +133,6 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfac
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleExampleClick = (example: string) => {
-    setQuestion(example);
-  };
-
   return (
     <div className="fade-in space-y-4">
 
@@ -207,7 +212,7 @@ export function QueryInterface({ onQuerySubmit, onLoadingChange }: QueryInterfac
               <button
                 key={index}
                 type="button"
-                onClick={() => handleExampleClick(example)}
+                onClick={() => setQuestion(example)}
                 className="px-3 py-1.5 text-xs bg-white/5 border border-white/10 rounded-full hover:bg-white/10 hover:border-accent transition-colors text-foreground"
               >
                 {example}

@@ -128,6 +128,7 @@ export default function Home() {
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [questionHistory, setQuestionHistory] = useState<QuestionHistory[]>([]);
+  const [prefillQuestion, setPrefillQuestion] = useState('');
 
   const handleQuerySubmit = (question: string, data: DashboardData) => {
     setLastQuestion(question);
@@ -172,6 +173,12 @@ export default function Home() {
     }
   };
 
+  const handleSidebarQuestionClick = (query: string) => {
+    setPrefillQuestion(query);
+    setIsSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Navbar onMenuToggle={setIsSidebarOpen} />
@@ -180,6 +187,7 @@ export default function Home() {
           isOpen={isSidebarOpen}
           questionHistory={questionHistory}
           onClearHistory={() => setQuestionHistory([])}
+          onQuestionClick={handleSidebarQuestionClick}
         />
         <main className="flex-1">
           <div className="p-6 md:p-8 space-y-8 max-w-7xl mx-auto w-full">
@@ -192,7 +200,12 @@ export default function Home() {
             <Stats />
 
             <div className="fade-in">
-              <QueryInterface onQuerySubmit={handleQuerySubmit} onLoadingChange={setIsLoadingCharts} />
+              <QueryInterface
+                onQuerySubmit={handleQuerySubmit}
+                onLoadingChange={setIsLoadingCharts}
+                prefillQuestion={prefillQuestion}
+                onPrefillUsed={() => setPrefillQuestion('')}
+              />
             </div>
 
             {isQueryExecuted && lastQuestion && (
@@ -264,4 +277,4 @@ export default function Home() {
       </div>
     </div>
   );
-}
+} 
